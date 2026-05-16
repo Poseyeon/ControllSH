@@ -5,6 +5,8 @@
 
 import * as blessed from 'blessed';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 import { login } from './api';
 
 /**
@@ -13,6 +15,59 @@ import { login } from './api';
 export const screen = blessed.screen({
   smartCSR: true,
   title: 'REST API TUI'
+});
+
+/**
+ * Logo ASCII Art
+ */
+const logoPath = path.join(process.cwd(), 'public', 'ascii-art.txt');
+let logoArt = '';
+if (fs.existsSync(logoPath)) {
+  const fullArt = fs.readFileSync(logoPath, 'utf8');
+  const lines = fullArt.split('\n');
+  const h = lines.length;
+  const w = Math.max(...lines.map(l => l.length));
+  
+  // 4x4 Source -> 1 Braille Character mapping (100x9 output)
+  const scaledLines: string[] = [];
+  for (let y = 0; y < Math.ceil(h / 4); y++) {
+    let scaledLine = '';
+    for (let x = 0; x < Math.ceil(w / 4); x++) {
+      let byte = 0;
+      const getPixel = (ox: number, oy: number) => {
+        const char = (lines[y * 4 + oy] || '')[x * 4 + ox];
+        return char && char !== ' ';
+      };
+
+      // Each Braille dot represents a 2x1 area of the original
+      if (getPixel(0, 0) || getPixel(1, 0)) byte |= 0x01; // Dot 1
+      if (getPixel(0, 1) || getPixel(1, 1)) byte |= 0x02; // Dot 2
+      if (getPixel(0, 2) || getPixel(1, 2)) byte |= 0x04; // Dot 3
+      if (getPixel(0, 3) || getPixel(1, 3)) byte |= 0x40; // Dot 7
+      
+      if (getPixel(2, 0) || getPixel(3, 0)) byte |= 0x08; // Dot 4
+      if (getPixel(2, 1) || getPixel(3, 1)) byte |= 0x10; // Dot 5
+      if (getPixel(2, 2) || getPixel(3, 2)) byte |= 0x20; // Dot 6
+      if (getPixel(2, 3) || getPixel(3, 3)) byte |= 0x80; // Dot 8
+      
+      scaledLine += byte === 0 ? ' ' : String.fromCharCode(0x2800 + byte);
+    }
+    scaledLines.push(scaledLine);
+  }
+  logoArt = scaledLines.join('\n');
+}
+
+export const logoBox = blessed.box({
+  parent: screen,
+  top: 1,
+  left: 'center',
+  width: '100%',
+  height: 9,
+  content: logoArt,
+  align: 'center',
+  style: {
+    fg: 'white'
+  }
 });
 
 /**
@@ -110,7 +165,7 @@ export const loginForm = blessed.form({
   parent: screen,
   keys: true,
   left: 'center',
-  top: 'center',
+  top: 12,
   width: '50%',
   height: 12,
   bg: 'blue',
@@ -208,6 +263,7 @@ screen.append(sendButton);
  */
 function showMainUI() {
   loginForm.hide();
+  logoBox.hide();
   responseBox.show();
   endpointInput.show();
   sendButton.show();
