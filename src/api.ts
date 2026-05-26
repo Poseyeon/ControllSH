@@ -2,8 +2,13 @@ import axios, { AxiosResponse } from 'axios';
 
 /**
  * Base URL for the API server.
+ * When running in Docker, use API_URL env var or host.docker.internal to reach the host.
  */
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = (process.env.API_URL && process.env.API_URL.trim() !== '') 
+  ? process.env.API_URL 
+  : 'http://localhost:3000';
+
+console.log(`Debug: Using API Base URL: "${BASE_URL}"`);
 
 /**
  * Performs a login request to the API.

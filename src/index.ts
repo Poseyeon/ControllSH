@@ -14,7 +14,20 @@ import { login } from './api';
  */
 export const screen = blessed.screen({
   smartCSR: true,
-  title: 'REST API TUI'
+  title: 'REST API TUI',
+  fullUnicode: true,
+  terminal: 'xterm-256color',
+  ignoreDock: true // Better compatibility with PTY
+});
+
+// Give the PTY a moment to settle before the first full render
+setTimeout(() => {
+    screen.render();
+}, 100);
+
+// Basic resize handler
+screen.on('resize', () => {
+  screen.render();
 });
 
 /**
