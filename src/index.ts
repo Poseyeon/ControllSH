@@ -1,47 +1,56 @@
 /**
- * @file Main entry point for the REST API TUI application.
- * Handles the login flow and transitions to the main request interface.
+ * @file Main entry point for the ControllSH TUI application.
+ * Manages the transition between the login screen and the interactive shell.
  */
 
 import * as blessed from 'blessed';
-import axios from 'axios';
+import { login } from './api';
 import * as fs from 'fs';
 import * as path from 'path';
-import { login } from './api';
 
 /**
- * The main screen object for the TUI.
+ * The main screen object for the Terminal User Interface (TUI).
+ * Configured for maximum compatibility with remote PTY environments.
  */
 export const screen = blessed.screen({
   smartCSR: true,
-  title: 'REST API TUI',
+  title: 'ControllSH TUI',
   fullUnicode: true,
   terminal: 'xterm-256color',
-  ignoreDock: true // Better compatibility with PTY
+  ignoreDock: true
 });
 
-// Give the PTY a moment to settle before the first full render
+/**
+ * Delayed initialization to ensure the PTY connection is fully established
+ * before the first render cycle.
+ */
 setTimeout(() => {
     screen.render();
 }, 100);
 
-// Basic resize handler
+/**
+ * Global resize listener to maintain UI integrity during terminal window changes.
+ */
 screen.on('resize', () => {
   screen.render();
 });
 
 /**
- * Logo ASCII Art
+ * Path to the ASCII art logo file.
  */
-const logoPath = path.join(process.cwd(), 'public', 'ascii-art.txt');
+const logoPath = path.join(process.cwd(), 'public', 'ascii-logo.txt');
+
+/**
+ * Processed ASCII art string, converted to Braille characters for high-density rendering.
+ */
 let logoArt = '';
+
 if (fs.existsSync(logoPath)) {
   const fullArt = fs.readFileSync(logoPath, 'utf8');
   const lines = fullArt.split('\n');
   const h = lines.length;
   const w = Math.max(...lines.map(l => l.length));
   
-  // 4x4 Source -> 1 Braille Character mapping (100x9 output)
   const scaledLines: string[] = [];
   for (let y = 0; y < Math.ceil(h / 4); y++) {
     let scaledLine = '';
@@ -52,16 +61,15 @@ if (fs.existsSync(logoPath)) {
         return char && char !== ' ';
       };
 
-      // Each Braille dot represents a 2x1 area of the original
-      if (getPixel(0, 0) || getPixel(1, 0)) byte |= 0x01; // Dot 1
-      if (getPixel(0, 1) || getPixel(1, 1)) byte |= 0x02; // Dot 2
-      if (getPixel(0, 2) || getPixel(1, 2)) byte |= 0x04; // Dot 3
-      if (getPixel(0, 3) || getPixel(1, 3)) byte |= 0x40; // Dot 7
+      if (getPixel(0, 0) || getPixel(1, 0)) byte |= 0x01;
+      if (getPixel(0, 1) || getPixel(1, 1)) byte |= 0x02;
+      if (getPixel(0, 2) || getPixel(1, 2)) byte |= 0x04;
+      if (getPixel(0, 3) || getPixel(1, 3)) byte |= 0x40;
       
-      if (getPixel(2, 0) || getPixel(3, 0)) byte |= 0x08; // Dot 4
-      if (getPixel(2, 1) || getPixel(3, 1)) byte |= 0x10; // Dot 5
-      if (getPixel(2, 2) || getPixel(3, 2)) byte |= 0x20; // Dot 6
-      if (getPixel(2, 3) || getPixel(3, 3)) byte |= 0x80; // Dot 8
+      if (getPixel(2, 0) || getPixel(3, 0)) byte |= 0x08;
+      if (getPixel(2, 1) || getPixel(3, 1)) byte |= 0x10;
+      if (getPixel(2, 2) || getPixel(3, 2)) byte |= 0x20;
+      if (getPixel(2, 3) || getPixel(3, 3)) byte |= 0x80;
       
       scaledLine += byte === 0 ? ' ' : String.fromCharCode(0x2800 + byte);
     }
@@ -70,6 +78,9 @@ if (fs.existsSync(logoPath)) {
   logoArt = scaledLines.join('\n');
 }
 
+/**
+ * UI element representing the ASCII logo box.
+ */
 export const logoBox = blessed.box({
   parent: screen,
   top: 1,
@@ -84,95 +95,11 @@ export const logoBox = blessed.box({
 });
 
 /**
- * Main UI Elements (hidden initially)
+ * Login Form Elements
  */
 
 /**
- * Box to display API responses.
- */
-export const responseBox = blessed.box({
-  top: 0,
-  left: 0,
-  width: '100%',
-  height: '90%',
-  content: '{bold}API Response{/bold}',
-  tags: true,
-  border: {
-    type: 'line'
-  },
-  style: {
-    fg: 'white',
-    bg: 'black',
-    border: {
-      fg: '#f0f0f0'
-    }
-  },
-  hidden: true
-});
-
-/**
- * Text input for the API endpoint URL.
- */
-export const endpointInput = blessed.textbox({
-  bottom: 0,
-  left: 0,
-  width: '80%',
-  height: 3,
-  inputOnFocus: true,
-  border: {
-    type: 'line'
-  },
-  style: {
-    fg: 'white',
-    bg: 'black',
-    border: {
-        fg: '#f0f0f0'
-    },
-    focus: {
-        border: {
-            fg: 'blue'
-        }
-    }
-  },
-  hidden: true
-});
-
-/**
- * Button to trigger the API request.
- */
-export const sendButton = blessed.button({
-  bottom: 0,
-  right: 0,
-  width: '20%',
-  height: 3,
-  content: 'Send',
-  align: 'center',
-  valign: 'middle',
-  border: {
-    type: 'line'
-  },
-  style: {
-    fg: 'white',
-    bg: 'blue',
-    border: {
-        fg: '#f0f0f0'
-    },
-    focus: {
-        bg: 'green'
-    },
-    hover: {
-        bg: 'green'
-    }
-  },
-  hidden: true
-});
-
-/**
- * Login UI Elements
- */
-
-/**
- * Form container for login inputs.
+ * Container form for all login-related inputs.
  */
 export const loginForm = blessed.form({
   parent: screen,
@@ -189,7 +116,7 @@ export const loginForm = blessed.form({
 });
 
 /**
- * Input field for the company name.
+ * Input field for the company identifier.
  */
 export const companyInput = blessed.textbox({
   parent: loginForm,
@@ -224,7 +151,7 @@ export const usernameInput = blessed.textbox({
 });
 
 /**
- * Input field for the password (censored).
+ * Input field for the password (masked).
  */
 export const passwordInput = blessed.textbox({
   parent: loginForm,
@@ -242,7 +169,7 @@ export const passwordInput = blessed.textbox({
 });
 
 /**
- * Button to submit the login form.
+ * Submission button for the login form.
  */
 export const loginButton = blessed.button({
   parent: loginForm,
@@ -265,26 +192,140 @@ export const loginButton = blessed.button({
   }
 });
 
-
-// Append main elements (initially hidden)
-screen.append(responseBox);
-screen.append(endpointInput);
-screen.append(sendButton);
+/**
+ * Shell UI Elements
+ */
 
 /**
- * Hides the login form and displays the main API interface.
+ * Main container for the shell interface.
+ * Provides a classic dark theme.
  */
-function showMainUI() {
+export const shellContainer = blessed.box({
+  parent: screen,
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: '100%',
+  style: {
+    bg: 'black'
+  },
+  hidden: true
+});
+
+/**
+ * Log display for the shell output.
+ */
+export const shellOutput = blessed.log({
+  parent: shellContainer,
+  top: 0,
+  left: 0,
+  width: '100%',
+  bottom: 1,
+  tags: true,
+  style: {
+    fg: 'white',
+    bg: 'black'
+  },
+  scrollable: true,
+  alwaysScroll: true,
+  scrollbar: {
+    ch: ' ',
+    style: {
+      bg: 'blue'
+    }
+  }
+});
+
+/**
+ * Container for the prompt label.
+ */
+export const promptLabel = blessed.box({
+  parent: shellContainer,
+  bottom: 0,
+  left: 0,
+  width: 12,
+  height: 1,
+  content: 'controllsh> ',
+  style: {
+    fg: 'white',
+    bg: 'black',
+    bold: true
+  }
+});
+
+/**
+ * Text box for entering shell commands.
+ */
+export const shellInput = blessed.textbox({
+  parent: shellContainer,
+  bottom: 0,
+  left: 12,
+  width: '100%-12',
+  height: 1,
+  inputOnFocus: true,
+  style: {
+    fg: 'white',
+    bg: 'black'
+  }
+});
+
+/**
+ * Transitions the UI from the login screen to the interactive shell.
+ */
+function showShellUI(): void {
   loginForm.hide();
   logoBox.hide();
-  responseBox.show();
-  endpointInput.show();
-  sendButton.show();
-  endpointInput.focus();
+  
+  shellContainer.show();
+  
+  shellOutput.log('{bold}Welcome to ControllSH Shell{/bold}');
+  shellOutput.log('Type help to see available commands.');
+  shellOutput.log('-------------------------------------------');
+  
+  shellInput.focus();
   screen.render();
 }
 
-// Handle login submission
+/**
+ * Handler for shell command submission.
+ */
+shellInput.on('submit', (value: string) => {
+  const command = value.trim().toLowerCase();
+  shellInput.clearValue();
+  
+  if (command) {
+    shellOutput.log(`controllsh> ${command}`);
+    
+    switch (command) {
+      case 'help':
+        shellOutput.log('{bold}Available Commands:{/bold}');
+        shellOutput.log('  help     - Show this help message');
+        shellOutput.log('  clear    - Clear the terminal');
+        shellOutput.log('  exit     - Close the session');
+        shellOutput.log('  whoami   - Display current session info');
+        break;
+      case 'clear':
+        shellOutput.setContent('');
+        break;
+      case 'exit':
+        process.exit(0);
+        break;
+      case 'whoami':
+        shellOutput.log('User: {bold}Admin{/bold}');
+        shellOutput.log('Role: {bold}Superuser{/bold}');
+        break;
+      default:
+        shellOutput.log(`{red-fg}Unknown command:{/red-fg} ${command}`);
+    }
+  }
+  
+  shellInput.focus();
+  screen.render();
+});
+
+/**
+ * Handler for login form submission.
+ */
 loginButton.on('press', async () => {
   const company = companyInput.getValue();
   const username = usernameInput.getValue();
@@ -293,10 +334,9 @@ loginButton.on('press', async () => {
   if (company && username && password) {
     try {
       const res = await login(company, username, password);
-      if (res.status === 201) {
-        showMainUI();
+      if (res.status === 201 || res.status === 200) {
+        showShellUI();
       } else {
-        // Simple error handling
         loginForm.setContent(`Login Failed: ${res.status}`);
         screen.render();
       }
@@ -307,31 +347,19 @@ loginButton.on('press', async () => {
   }
 });
 
-// Handle button click for main UI
-sendButton.on('press', async () => {
-  const endpoint = endpointInput.getValue();
-  if (endpoint) {
-    responseBox.setContent('Loading...');
-    screen.render();
-    try {
-      const response = await axios.get(endpoint);
-      responseBox.setContent(JSON.stringify(response.data, null, 2));
-    } catch (error: any) {
-      responseBox.setContent(`Error: ${error.message}`);
-    }
-    screen.render();
-  }
-});
-
-// Focus on company input initially
+/**
+ * Initial focus on the company input field.
+ */
 companyInput.focus();
 
-// Quit on Escape, q, or Control-C.
-screen.key(['escape', 'q', 'C-c'], (ch, key) => {
+/**
+ * Global key listener for application termination.
+ */
+screen.key(['escape', 'q', 'C-c'], () => {
   return process.exit(0);
 });
 
-// Render the screen.
+/**
+ * Initial screen render call.
+ */
 screen.render();
-
-

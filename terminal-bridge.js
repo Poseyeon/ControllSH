@@ -1,18 +1,39 @@
+/**
+ * @file Terminal bridge server.
+ * Establishes a WebSocket server that bridges a pseudo-terminal (PTY) 
+ * to a frontend using raw data transmission.
+ */
+
 const os = require('os');
 const pty = require('node-pty');
 const WebSocket = require('ws');
 
+/**
+ * The default shell to use for the PTY process.
+ * @type {string}
+ */
 const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
-// Start the WebSocket server on port 7681
+/**
+ * The WebSocket server instance.
+ * @type {WebSocket.Server}
+ */
 const wss = new WebSocket.Server({ port: 7681 });
 
 console.log('Terminal bridge started on port 7681');
 
+/**
+ * Event listener for new WebSocket connections.
+ * Handles the spawning of the PTY process and bridging data between 
+ * the WebSocket and the PTY.
+ */
 wss.on('connection', (ws) => {
     console.log('Frontend connected to terminal');
 
-    // Spawn the actual terminal process (your app)
+    /**
+     * The spawned PTY process running the Node.js application.
+     * @type {pty.IPty}
+     */
     const ptyProcess = pty.spawn('node', ['dist/index.js'], {
         name: 'xterm-256color',
         cols: 150, // Increased width for the wide logo
@@ -27,7 +48,9 @@ wss.on('connection', (ws) => {
         }
     });
 
-    // Send data from PTY to Frontend (Raw Binary)
+    /**
+     * Forwards data from the PTY process to the WebSocket client.
+     */
     ptyProcess.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) {
             // Sending binary data is safer for complex TUI/Unicode
@@ -35,7 +58,10 @@ wss.on('connection', (ws) => {
         }
     });
 
-    // Receive data from Frontend and write to PTY (Raw)
+    /**
+     * Handles incoming messages from the WebSocket client.
+     * Supports raw terminal input and specific JSON messages for resizing.
+     */
     ws.on('message', (message) => {
         let data;
         if (Buffer.isBuffer(message)) {
@@ -61,6 +87,9 @@ wss.on('connection', (ws) => {
         ptyProcess.write(data);
     });
 
+    /**
+     * Cleans up the PTY process when the WebSocket connection is closed.
+     */
     ws.on('close', () => {
         console.log('Frontend disconnected');
         ptyProcess.kill();
